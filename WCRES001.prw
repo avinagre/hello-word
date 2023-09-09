@@ -32,7 +32,7 @@ WSMETHOD GET WSRECEIVE searchKey, page, pageSize WSREST WCRES001
     cData := aParam[2]
 
   else
-    conout('nao tem parametros')
+    FWLogMsg("INFO",,"ZCONOUT",,,,"nao tem parametros",,,)
   endif
 
   lCheckInvent := checkInventario(cData, "")
@@ -117,7 +117,7 @@ WSMETHOD GET WSRECEIVE searchKey, page, pageSize WSREST WCRES001
     cQuery += " ORDER BY SB1.B1_XFAMILI DESC "
   ENDIF
 
-  conout(cQuery)
+  FWLogMsg("INFO",,"ZCONOUT",,,,cQuery,,,)
 
   cQuery := ChangeQuery(cQuery)
   DbUseArea(.T.,"TOPCONN",TCGENQRY(,,cQuery),cALias,.T.,.T.)
@@ -187,10 +187,10 @@ WSMETHOD POST WSSERVICE WCRES001
 
 		oItems  := oJson:GetJsonObject('itens')
 
-		conout("####################")
-		conout(cEmpAnt)
-		conout(cFilAnt)
-		conout("####################")
+		FWLogMsg("INFO",,"ZCONOUT",,,,"####################",,,)
+		FWLogMsg("INFO",,"ZCONOUT",,,,cEmpAnt,,,)
+		FWLogMsg("INFO",,"ZCONOUT",,,,cFilAnt,,,)
+		FWLogMsg("INFO",,"ZCONOUT",,,,"####################",,,)
 
 		for i := 1 to Len(oItems)
 			cCodigo     := Padr(oItems[i]:GetJsonObject('codigo'),TamSX3("B1_COD")[1])
@@ -241,7 +241,7 @@ WSMETHOD POST APROVAR WSSERVICE WCRES001
 	//Se vazio, significa que o parser ocorreu sem erros
 	if Empty(cError)
 		cCodInventario  := oJson:GetJsonObject('CODIGO_INVENTARIO')
-		conout('codigo inventario => '+ cCodInventario)
+		FWLogMsg("INFO",,"ZCONOUT",,,,"codigo inventario => "+ cCodInventario,,,)
 
 		SB7->(DbSetOrder(3))
 		SB7->(DbSeek(xFilial("SB7") + Alltrim(cCodInventario)))
@@ -255,7 +255,7 @@ WSMETHOD POST APROVAR WSSERVICE WCRES001
 				lAprovar := .F.
 				cAprovar := "Erro no processamento de acerto de inventário! => " + cCodInventario + CRLF
 			else
-				ConOut("Processado com Sucesso! Documento: "+cCodInventario)
+				FWLogMsg("INFO",,"ZCONOUT",,,,"Processado com Sucesso! Documento: "+cCodInventario,,,)
 				lAprovar := .T.
 				cAprovar := "Processado com Sucesso! Documento: "+cCodInventario
 			endif
@@ -263,7 +263,7 @@ WSMETHOD POST APROVAR WSSERVICE WCRES001
 		Else
 			// ConOut("Erro no processamento de acerto de inventário!")
 			cError := MostraErro("/dirdoc", "error.log") // ARMAZENA A MENSAGEM DE ERRO
-			conout(cError)
+			FWLogMsg("INFO",,"ZCONOUT",,,,cError,,,)
 			lAprovar := .F.
 			cAprovar := "Erro no processamento de acerto de inventário! => " + cCodInventario + CRLF
 			cAprovar += cError
@@ -336,7 +336,7 @@ Static Function LCGRVARQ(cCodigo,nQuant,dData,cLocal,cdata)
 				aRet := {.T.,cCodigo,cTexto}
 			Else
 				cError := MostraErro("/dirdoc", "error.log") // ARMAZENA A MENSAGEM DE ERRO
-				conout(cError)
+				FWLogMsg("INFO",,"ZCONOUT",,,,cError,,,)
 				aRet := {.F.,cCodigo,cError}
 			EndIf
 		EndIf
