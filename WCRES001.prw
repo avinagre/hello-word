@@ -55,8 +55,7 @@ WSMETHOD GET WSRECEIVE searchKey, page, pageSize WSREST WCRES001
 
   cQuery := " SELECT SB1.B1_COD, SB1.B1_DESC, SB1.B1_LOCPAD, SB1.B1_UM, SB1.B1_XDIARIO, SB1.B1_XSEMANA, " + CRLF
   cQuery += " SB1.B1_XQUINZE, SB1.B1_XMENSAL, SB1.B1_ATIVO, X5_DESCRI, SB1.B1_SEGUM, SB1.B1_CONV, SB1.B1_TIPCONV, " + CRLF
-  cQuery += " SB7.B7_DOC, SB7.B7_LOCAL, SB7.B7_QUANT, SB7.B7_DATA, SB7.B7_STATUS, SB1.B1_XTERUM, SB1.B1_XCONV, " + CRLF
-  cQuery += " SB1.B1_XINVET1, SB1.B1_XINVET2, SB1.B1_XINVET3 " + CRLF
+  cQuery += " SB7.B7_DOC, SB7.B7_LOCAL, SB7.B7_QUANT, SB7.B7_DATA, SB7.B7_STATUS, SB1.B1_XTERUM, SB1.B1_XCONV " + CRLF
 
   cQuery += " FROM " + RetSqlName("SB1") + " SB1 " + CRLF
   
@@ -67,7 +66,7 @@ WSMETHOD GET WSRECEIVE searchKey, page, pageSize WSREST WCRES001
   cQuery += " AND SB1.B1_FILIAL = '" + xFilial("SB1") + "'"
 
   if Alltrim(Upper(cTipo)) $ "INVENTARIO|DIARIO|SEMANAL|QUINZENAL|MENSAL"
-    cQuery += " AND SB1.B1_XFAMILI IN ('000007','000008','000009') "
+    cQuery += " AND SB1.B1_XFAMILI IN ('000006','000007','000008','000009') "
   endif
 
   if Alltrim(Upper(cTipo)) == "PERDAS_COMPLETO"
@@ -147,9 +146,6 @@ WSMETHOD GET WSRECEIVE searchKey, page, pageSize WSREST WCRES001
       aListInv[nAux]['B7_DATA']     := Alltrim((cALias)->B7_DATA)
 	  aListInv[nAux]['B1_XTERUM']   := Alltrim((cALias)->B1_XTERUM)
 	  aListInv[nAux]['B1_XCONV']    := (cALias)->B1_XCONV
-	  aListInv[nAux]['B1_XINVET1']  := (cALias)->B1_XINVET1
-	  aListInv[nAux]['B1_XINVET2']  := (cALias)->B1_XINVET2
-	  aListInv[nAux]['B1_XINVET3']  := (cALias)->B1_XINVET3
 
       (cALias)->( DBSkip() )
     End
@@ -227,6 +223,7 @@ WSMETHOD POST APROVAR WSSERVICE WCRES001
 	Local oJsonInv  		:= JsonObject():New()
 	local lAprovar			:= .F.
 	local cAprovar			:= ""
+	Local lBloq
 	private lMsErroAuto := .f.
 
 	cJson := ::GetContent()
@@ -242,32 +239,45 @@ WSMETHOD POST APROVAR WSSERVICE WCRES001
 	if Empty(cError)
 		cCodInventario  := oJson:GetJsonObject('CODIGO_INVENTARIO')
 		FWLogMsg("INFO",,"ZCONOUT",,,,"codigo inventario => "+ cCodInventario,,,)
+		//Andre Mendes [OBIFY] 
+		lBloq := BlqInvent(DtoS(ddatabase), cCodInventario, .T.) //Bloqueando estoque para inventario
 
-		SB7->(DbSetOrder(3))
-		SB7->(DbSeek(xFilial("SB7") + Alltrim(cCodInventario)))
+		If lBloq //B2 bloquado com sucesso
+			SB7->(DbSetOrder(3))
+			SB7->(DbSeek(xFilial("SB7") + Alltrim(cCodInventario)))
 
-		MSExecAuto({|x,y,z| mata340(x,y,z)}, .T., cCodInventario, .F.)
+			MSExecAuto({|x,y,z| mata340(x,y,z)}, .T., cCodInventario, .F.)
 
-		If !lMsErroAuto
+			If !lMsErroAuto
 
-			lIsCheckInvet := checkInventario("", Alltrim(cCodInventario))
-			IF lIsCheckInvet
+				lIsCheckInvet := checkInventario("", Alltrim(cCodInventario))
+				IF lIsCheckInvet
+					lAprovar := .F.
+					cAprovar := "Erro no processamento de acerto de inventário! => " + cCodInventario + CRLF
+				else
+					FWLogMsg("INFO",,"ZCONOUT",,,,"Processado com Sucesso! Documento: "+cCodInventario,,,)
+					lAprovar := .T.
+					cAprovar := "Processado com Sucesso! Documento: "+cCodInventario
+				endif
+
+			Else
+				// ConOut("Erro no processamento de acerto de inventário!")
+				cError := MostraErro("/dirdoc", "error.log") // ARMAZENA A MENSAGEM DE ERRO
+				FWLogMsg("INFO",,"ZCONOUT",,,,cError,,,)
 				lAprovar := .F.
 				cAprovar := "Erro no processamento de acerto de inventário! => " + cCodInventario + CRLF
-			else
-				FWLogMsg("INFO",,"ZCONOUT",,,,"Processado com Sucesso! Documento: "+cCodInventario,,,)
-				lAprovar := .T.
-				cAprovar := "Processado com Sucesso! Documento: "+cCodInventario
-			endif
-
-		Else
-			// ConOut("Erro no processamento de acerto de inventário!")
-			cError := MostraErro("/dirdoc", "error.log") // ARMAZENA A MENSAGEM DE ERRO
+				cAprovar += cError
+			EndIf
+		else // não consegui bloquear
+			cError :="Nao foi possivel bloquear o estoque para aprovacao do inventario."
 			FWLogMsg("INFO",,"ZCONOUT",,,,cError,,,)
 			lAprovar := .F.
 			cAprovar := "Erro no processamento de acerto de inventário! => " + cCodInventario + CRLF
 			cAprovar += cError
-		EndIf
+
+		Endif
+
+		BlqInvent(DtoS(ddatabase), cCodInventario, .F.) //desbloqueando o estoque para inventarios
 
 	endif
 
@@ -379,3 +389,50 @@ Static Function checkInventario(cData, cCodInv)
 	(cAlias)->(DbCloseArea())
 	
 Return lRet
+
+/*
+André Mendes [OBIFY]
+31/08/2023
+Essa função faz o bloqueio ou desbloqueio do inventário.
+Para funcionar o parâmetro MV_VLDTINV deve ser = 1
+
+
+
+*/
+Static Function BlqInvent(cData, cDodInv, lBloq)
+	lRet := .t.
+	
+	cExec := "UPDATE "
+	cExec += "		"+RetSqlName("SB2")+" "
+	cExec += "Set "
+	If lBloq
+		cExec += "	B2_DTINV	= FORMAT(DATEFROMPARTS(YEAR(Convert(datetime,'"+cData+"')), MONTH(Convert(datetime,'"+cData+"')), 1), 'yyyyMMdd'), "
+		cExec += "	B2_DINVFIM	= FORMAT(EOMONTH(Convert(datetime,'"+cData+"')), 'yyyyMMdd') "
+	else
+		cExec += "	B2_DTINV	= ' ', "
+		cExec += "	B2_DINVFIM	= ' ' "
+
+	Endif
+	
+	cExec += "from  "
+	cExec += "	"+RetSqlName("SB7")+" SB7		inner join "
+	cExec += "	"+RetSqlName("SB2")+" SB2 on "
+	cExec += "			SB2.B2_FILIAL	= SB7.B7_FILIAL	and "
+	cExec += "			SB2.B2_LOCAL	= SB7.B7_LOCAL	and "
+	cExec += "			SB2.B2_COD		= SB7.B7_COD "
+	cExec += "where  "
+	cExec += "	SB7.B7_FILIAL	= '"+xFilial("SB7")+"'  "
+	cExec += "and SB7.B7_DATA		= '"+cData+"'  "
+	cExec += "and SB7.B7_DOC		= '"+cDodInv+"' "
+	cExec += "and	SB7.D_E_L_E_T_ = '' "
+	cExec += "and SB2.D_E_L_E_T_ = ''	 "
+	nErro := TCSqlExec(cExec)
+
+	If nErro != 0
+		lRet := .f.
+	EndIf
+
+
+Return lRet
+
+
